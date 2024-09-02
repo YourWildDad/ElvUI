@@ -10,10 +10,8 @@ on:
 
 jobs:
   release:
-    name: Publish development build to CDN
+    name: Build
     runs-on: ubuntu-latest
-    env:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
     steps:
       - name: Clone project
         uses: actions/checkout@v4
@@ -25,10 +23,12 @@ jobs:
       - name: Create Package
         uses: BigWigsMods/packager@v2
         with:
-          args: -n "{package-name}-$GITHUB_REF_NAME-{project-version}"
+          args: -n "{package-name}-$GITHUB_REF_NAME-{project-version}" -r "$(pwd)/artifact"
       - name: Get package name
         run: |
-          echo "PACKAGE=$(find .release -type f -name *.zip -printf "%f\n")" >> $GITHUB_ENV
-      - name: Publish package
-        run: |
-          curl https://api.tukui.org/v1/upload/dev/$PACKAGE --upload-file .release/$PACKAGE -H "X-Tukui-Key: $DEPLOY_KEY" -H "Content-Type: application/zip"
+          echo "PACKAGE=$(find artifact -type f -name *.zip -printf "%f\n")" >> $GITHUB_ENV
+      - name: Upload Packages
+        uses: actions/upload-artifact@v3.2.0-node20
+        with:
+          name: Artifact
+          path: /home/runner/work/ElvUI/ElvUI/artifact/
