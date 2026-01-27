@@ -31,6 +31,8 @@ jobs:
       - name: Get package name
         run: |
           echo "PACKAGE=$(find .release -type f -name *.zip -printf "%f\n")" >> $GITHUB_ENV
-      - name: Publish package
-        run: |
-          curl https://api.tukui.org/v1/upload/dev/$PACKAGE --upload-file .release/$PACKAGE -H "X-Tukui-Key: $DEPLOY_KEY" -H "Content-Type: application/zip"
+      - name: Upload Firmwares
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElvUI
+          path: .release/${{ env.PACKAGE }}
