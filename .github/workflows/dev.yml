@@ -1,6 +1,7 @@
-name: Development pipeline
+name: Build development package
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -10,31 +11,35 @@ on:
     tags-ignore:
       - '**'
 
+permissions:
+  contents: read
+
 jobs:
-  release:
-    if: github.repository == 'tukui-org/ElvUI'
-    name: Publish development build to CDN
+  package:
+    name: Build installable ZIP
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    env:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+    timeout-minutes: 20
     steps:
       - name: Clone project
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Workaround checkout issues
         run: |
           git fetch --tags --force
       - name: Create Package
         uses: BigWigsMods/packager@v2
         with:
-          args: -n "{package-name}-$GITHUB_REF_NAME-{project-version}"
-      - name: Get package name
-        run: |
-          echo "PACKAGE=$(find .release -type f -name *.zip -printf "%f\n")" >> $GITHUB_ENV
-      - name: Publish package
-        run: |
-          curl https://api.tukui.org/v1/upload/dev/$PACKAGE --silent --show-error --fail --upload-file .release/$PACKAGE -H "X-Tukui-Key: $DEPLOY_KEY" -H "Content-Type: application/zip"
+          args: -d -n "{package-name}-$GITHUB_REF_NAME-{project-version}"
+      - name: Save package for download
+        uses: actions/upload-artifact@v7
+        with:
+          path: .release/*.zip
+          archive: false
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
