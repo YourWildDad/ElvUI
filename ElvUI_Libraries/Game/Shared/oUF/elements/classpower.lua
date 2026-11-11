@@ -97,12 +97,15 @@ local GetTime = GetTime
 local UnitPower = UnitPower
 local UnitPowerMax = UnitPowerMax
 local UnitPowerType = UnitPowerType
+local UnitExists = UnitExists
 local UnitHasVehicleUI = UnitHasVehicleUI
 local UnitPowerDisplayMod = UnitPowerDisplayMod
 local PlayerVehicleHasComboPoints = PlayerVehicleHasComboPoints
 local GetUnitChargedPowerPoints = GetUnitChargedPowerPoints
 local GetCollapsingStarCost = GetCollapsingStarCost
 local GetComboPoints = GetComboPoints
+local MAX_COMBO_POINTS = MAX_COMBO_POINTS or 5
+local foreverDruid = oUF.isForever and oUF.myclass == 'DRUID'
 
 local GetSpellCharges = C_Spell.GetSpellCharges
 local GetSpellCastCount = C_Spell.GetSpellCastCount
@@ -264,7 +267,7 @@ local function Update(self, element, event, unit, powerType)
 	local current, maximum, powerMax, previousMax, chargedPoints
 	if event ~= 'ClassPowerDisable' then
 		local powerID = (vehicle and POWERTYPE_COMBO_POINTS) or classPowerID
-		local displayMod = (powerID > 0 and UnitPowerDisplayMod(powerID)) or 1
+		local displayMod = (not foreverDruid and powerID > 0 and UnitPowerDisplayMod(powerID)) or 1
 		local warlockDest = classPowerID == POWERTYPE_BURNING_EMBERS or nil
 		local warlockDemo = classPowerID == POWERTYPE_DEMONIC_FURY or nil
 		local devourerDemon = classPowerID == POWERTYPE_SOUL_FRAGMENTS or nil
@@ -281,6 +284,9 @@ local function Update(self, element, event, unit, powerType)
 			else
 				maximum, powerMax = 1, GetSpellMaxCumulativeAuraApplications(SPELL_DARK_HEART)
 			end
+		elseif foreverDruid then
+			current = (UnitExists('target') and GetComboPoints and GetComboPoints('player', 'target')) or 0
+			maximum, powerMax = MAX_COMBO_POINTS, MAX_COMBO_POINTS
 		elseif oUF.isRetail and (myClass == 'WARLOCK' and element.currentSpec == SPEC_WARLOCK_DESTRUCTION) then -- destro locks are special
 			current = UnitPower(unit, powerID, true) / displayMod
 		elseif oUF.isRetail and classPowerID == POWERTYPE_FIREBLAST then
@@ -502,6 +508,10 @@ local function CheckCharges(self, event)
 	Path(self, event, 'player')
 end
 
+local function UpdateForeverComboPoints(self, event)
+	Path(self, event, 'player', 'COMBO_POINTS')
+end
+
 local function ClassPowerEnable(element, owner)
 	owner:RegisterEvent('UNIT_MAXPOWER', Path)
 	owner:RegisterEvent('UNIT_POWER_FREQUENT', Path)
@@ -517,6 +527,11 @@ local function ClassPowerEnable(element, owner)
 
 	if oUF.isModern then -- according to Blizz any class may receive this event due to specific spell auras
 		owner:RegisterEvent('UNIT_POWER_POINT_CHARGE', Path)
+		if foreverDruid then
+			owner:RegisterEvent('PLAYER_TARGET_CHANGED', VisibilityPath, true)
+			-- oUF validates events before registering them; older clients may emit this event instead.
+			owner:RegisterEvent('UNIT_COMBO_POINTS', UpdateForeverComboPoints, true)
+		end
 	else
 		owner:RegisterEvent('PLAYER_TARGET_CHANGED', VisibilityPath, true)
 	end
@@ -540,6 +555,10 @@ local function ClassPowerDisable(element, owner)
 
 	if oUF.isModern then
 		owner:UnregisterEvent('UNIT_POWER_POINT_CHARGE', Path)
+		if foreverDruid then
+			owner:UnregisterEvent('PLAYER_TARGET_CHANGED', VisibilityPath)
+			owner:UnregisterEvent('UNIT_COMBO_POINTS', UpdateForeverComboPoints)
+		end
 	else
 		owner:UnregisterEvent('PLAYER_TARGET_CHANGED', VisibilityPath)
 	end

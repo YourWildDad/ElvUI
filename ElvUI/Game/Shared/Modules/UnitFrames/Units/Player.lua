@@ -26,11 +26,16 @@ function UF:Construct_PlayerFrame(frame)
 	frame.ClassBarHolder = CreateFrame('Frame', nil, frame)
 	frame.ClassBarHolder:Point('BOTTOM', E.UIParent, 'BOTTOM', 0, 150)
 
-	-- Druid, Priest, Shaman, Monk
-	frame.ClassAdditionalHolder = CreateFrame('Frame', nil, frame)
-	frame.ClassAdditionalHolder:Point('BOTTOM', E.UIParent, 'BOTTOM', 0, 150)
+	if not (E.Forever and E.myclass == 'DRUID') then
+		frame.ClassAdditionalHolder = CreateFrame('Frame', nil, frame)
+		frame.ClassAdditionalHolder:Point('BOTTOM', E.UIParent, 'BOTTOM', 0, 150)
+	end
 
 	UF:GetClassPower_Construct(frame)
+	if E.Forever and E.myclass == 'DRUID' then
+		frame:HookScript('OnShow', UF.Update_ForeverDruidTargetClassBar)
+		frame:HookScript('OnHide', UF.Update_ForeverDruidTargetClassBar)
+	end
 
 	frame.PowerPrediction = UF:Construct_PowerPrediction(frame) -- must be AFTER Power & AdditionalPower
 	frame.MouseGlow = UF:Construct_MouseGlow(frame)
@@ -82,12 +87,11 @@ function UF:Update_PlayerFrame(frame, db)
 		frame.MAX_CLASS_BAR = frame.MAX_CLASS_BAR or max(UF.classMaxResourceBar[E.myclass] or 0, MAX_COMBO_POINTS) --only set this initially
 		frame.USE_CLASSBAR = db.classbar.enable and frame.CAN_HAVE_CLASSBAR
 		frame.CLASSBAR_SHOWN = frame.CAN_HAVE_CLASSBAR and frame[frame.ClassBar]:IsShown()
-		frame.CLASSBAR_DETACHED = db.classbar.detachFromFrame
+		frame.CLASSBAR_DETACHED = not (E.Forever and E.myclass == 'DRUID') and db.classbar.detachFromFrame
 		frame.USE_MINI_CLASSBAR = db.classbar.fill == 'spaced' and frame.USE_CLASSBAR
 		frame.CLASSBAR_HEIGHT = frame.USE_CLASSBAR and db.classbar.height or 0
 		frame.CLASSBAR_WIDTH = frame.UNIT_WIDTH - frame.PORTRAIT_WIDTH - (frame.ORIENTATION == 'MIDDLE' and (frame.POWERBAR_OFFSET*2) or frame.POWERBAR_OFFSET)
-		--If formula for frame.CLASSBAR_YOFFSET changes, then remember to update it in classbars.lua too
-		frame.CLASSBAR_YOFFSET = (not frame.USE_CLASSBAR or not frame.CLASSBAR_SHOWN or frame.CLASSBAR_DETACHED) and 0 or (frame.USE_MINI_CLASSBAR and (UF.SPACING+(frame.CLASSBAR_HEIGHT*0.5)) or (frame.CLASSBAR_HEIGHT - (UF.BORDER-UF.SPACING)))
+		frame.CLASSBAR_YOFFSET = UF:GetClassBarYOffset(frame)
 		frame.USE_INFO_PANEL = not frame.USE_MINI_POWERBAR and not frame.USE_POWERBAR_OFFSET and db.infoPanel.enable
 		frame.INFO_PANEL_HEIGHT = frame.USE_INFO_PANEL and db.infoPanel.height or 0
 		frame.BOTTOM_OFFSET = UF:GetHealthBottomOffset(frame)

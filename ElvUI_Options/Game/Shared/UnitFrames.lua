@@ -14,6 +14,7 @@ local IsControlKeyDown = IsControlKeyDown
 local GetSpellTexture = C_Spell.GetSpellTexture
 
 local TEXT_FORMAT_WIDTH = 330
+local foreverDruid = E.Forever and E.myclass == 'DRUID'
 
 local petTypes = {
 	pet = true,
@@ -1061,7 +1062,7 @@ local function GetOptionsTable_ClassBar(updateFunc, groupName, numUnits)
 		config.args.generalGroup.args.altPowerColor = ACH:Color(L["COLOR"], nil, 3, nil, nil, function(info) local t, d = E.db.unitframe.units[groupName].classbar[info[#info]], P.unitframe.units[groupName].classbar[info[#info]] return t.r, t.g, t.b, t.a, d.r, d.g, d.b end, function(info, r, g, b) local t = E.db.unitframe.units[groupName].classbar[info[#info]] t.r, t.g, t.b = r, g, b UF:Update_AllFrames() end)
 		config.args.generalGroup.args.altPowerTextFormat = ACH:Input(L["Text Format"], L["Controls the text displayed. Tags are available in the Available Tags section of the config."], 6, nil, 'full')
 	elseif groupName == 'player' then
-		config.args.generalGroup.args.height.max = function() return E.db.unitframe.units.player.classbar.detachFromFrame and 300 or 30 end
+		config.args.generalGroup.args.height.max = function() return not foreverDruid and E.db.unitframe.units.player.classbar.detachFromFrame and 300 or 30 end
 		config.args.generalGroup.args.autoHide = ACH:Toggle(L["Auto-Hide"], nil, 5)
 		config.args.generalGroup.args.smoothbars = ACH:Toggle(L["Smooth Bars"], L["Bars will transition smoothly."], 6)
 		config.args.generalGroup.args.sortDirection = ACH:Select(L["Sort Direction"], L["Defines the sort order of the selected sort method."], 7, { asc = L["Ascending"], desc = L["Descending"], NONE = L["None"] }, nil, nil, nil, nil, nil, function() return E.myclass ~= 'DEATHKNIGHT' or E.Wrath or E.Mists end)
@@ -1073,6 +1074,13 @@ local function GetOptionsTable_ClassBar(updateFunc, groupName, numUnits)
 		config.args.additionalGroup.args.frameStrata = ACH:Select(L["Frame Strata"], nil, 4, C.Values.Strata)
 		config.args.additionalGroup.args.frameLevel = ACH:Range(L["Frame Level"], nil, 5, { min = 2, max = 128, step = 1 })
 		config.args.additionalGroup.args.autoHide = ACH:Toggle(L["Auto-Hide"], nil, 6)
+		if foreverDruid then
+			config.args.additionalGroup.args.width.hidden = true
+			config.args.additionalGroup.args.height.max = 30
+			config.args.additionalGroup.args.orientation.hidden = true
+			config.args.additionalGroup.args.frameStrata.hidden = true
+			config.args.additionalGroup.args.frameLevel.hidden = true
+		end
 
 		config.args.additionalGroup.args.altManaGroup = ACH:Group(L["Additional Power"], nil, 10, nil, function(info) return E.db.unitframe.altManaPowers[E.myclass][info[#info]] end, function(info, value) E.db.unitframe.altManaPowers[E.myclass][info[#info]] = value updateFunc(UF, groupName, numUnits) end)
 		config.args.additionalGroup.args.altManaGroup.args.info = ACH:Description(E.myclass == 'MONK' and L["Will display as additional power:"] or L["Will display mana when the main power is:"], 0)
@@ -1093,7 +1101,7 @@ local function GetOptionsTable_ClassBar(updateFunc, groupName, numUnits)
 			config.args.additionalGroup.args.altManaGroup.args.EbonMight = ACH:Toggle(L["EBON_MIGHT"], nil, 1)
 		end
 
-		config.args.detachGroup = ACH:Group(L["Detach From Frame"], nil, 30, nil, function(info) return E.db.unitframe.units.player.classbar[info[#info]] end, function(info, value) E.db.unitframe.units.player.classbar[info[#info]] = value UF:CreateAndUpdateUF('player') end, nil, altPower)
+		config.args.detachGroup = ACH:Group(L["Detach From Frame"], nil, 30, nil, function(info) return E.db.unitframe.units.player.classbar[info[#info]] end, function(info, value) E.db.unitframe.units.player.classbar[info[#info]] = value UF:CreateAndUpdateUF('player') end, nil, altPower or foreverDruid)
 		config.args.detachGroup.args.detachFromFrame = ACH:Toggle(L["Enable"], nil, 1)
 		config.args.detachGroup.args.detachedWidth = ACH:Range(L["Detached Width"], nil, 2, { min = 3, max = 1000, step = 1 }, nil, nil, nil, nil, function() return not E.db.unitframe.units.player.classbar.detachFromFrame end)
 		config.args.detachGroup.args.orientation = ACH:Select(L["Frame Orientation"], nil, 3, { HORIZONTAL = L["Horizontal"], VERTICAL = L["Vertical"] }, nil, nil, nil, nil, function() return not E.db.unitframe.units.player.classbar.detachFromFrame end)

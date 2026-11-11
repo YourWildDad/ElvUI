@@ -33,6 +33,10 @@ function UF:Construct_TargetFrame(frame)
 	frame.AuraWatch = UF:Construct_AuraWatch(frame)
 	frame.Fader = UF:Construct_Fader()
 	frame.Cutaway = UF:Construct_Cutaway(frame)
+	if E.Forever and E.myclass == 'DRUID' then
+		frame:HookScript('OnShow', UF.Update_ForeverDruidTargetClassBar)
+		frame:HookScript('OnHide', UF.Update_ForeverDruidTargetClassBar)
+	end
 	frame.CombatIndicator = UF:Construct_CombatIndicator(frame)
 	frame.Auras = UF:Construct_Auras(frame)
 	frame.Buffs = UF:Construct_Buffs(frame)
@@ -72,6 +76,7 @@ function UF:Update_TargetFrame(frame, db)
 	frame:SetFrameLevel(db.strataAndLevel and db.strataAndLevel.useCustomLevel and db.strataAndLevel.frameLevel or 1)
 
 	UF:ConfigureFrame(frame, 'target', 12 + db.castbar.height)
+	UF:Update_ForeverDruidTargetClassBar()
 end
 
 tinsert(UF.unitstoload, 'target')

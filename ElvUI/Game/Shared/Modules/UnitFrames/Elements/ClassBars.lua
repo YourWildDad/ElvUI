@@ -3,6 +3,7 @@ local UF = E:GetModule('UnitFrames')
 local ElvUF = E.oUF
 
 local max = max
+local min = min
 local next = next
 local pairs = pairs
 local ipairs = ipairs
@@ -16,6 +17,7 @@ local SPEC_SHAMAN_ELEMENTAL = SPEC_SHAMAN_ELEMENTAL or 1
 local SPEC_MONK_MISTWEAVER = SPEC_MONK_MISTWEAVER or 2
 
 local StatusBarInterpolation = Enum.StatusBarInterpolation
+local foreverDruid = E.Forever and E.myclass == 'DRUID'
 
 local FALLBACK = Mixin({ r = 0, g = 0, b = 0, a = 0 }, ColorMixin)
 
@@ -121,6 +123,30 @@ function UF:ClassPower_ShouldShowAdditionalPower(element)
 	return hasAny
 end
 
+local function GetAttachedManaHeight(frame)
+	return min(max(frame.db.classAdditional.height, (UF.BORDER + UF.SPACING) * 2 + 1), 30)
+end
+
+function UF:GetClassBarYOffset(frame)
+	if foreverDruid and frame.unitframeType == 'player' then
+		return (frame.USE_CLASSBAR and frame.AdditionalPower:IsShown()) and (GetAttachedManaHeight(frame) - (UF.BORDER - UF.SPACING)) or 0
+	end
+
+	return (not frame.USE_CLASSBAR or not frame.CLASSBAR_SHOWN or frame.CLASSBAR_DETACHED) and 0 or (frame.USE_MINI_CLASSBAR and (UF.SPACING + (frame.CLASSBAR_HEIGHT * 0.5)) or (frame.CLASSBAR_HEIGHT - (UF.BORDER - UF.SPACING)))
+end
+
+function UF:Update_ForeverDruidTargetClassBar()
+	if not foreverDruid then return end
+
+	local player = UF.player
+	if not (player and player.db) then return end
+
+	UF:Configure_ClassBar(player)
+	if player:IsShown() and player:IsElementEnabled('ClassPower') then
+		player.ClassPower:ForceUpdate()
+	end
+end
+
 function UF:Configure_ClassBar(frame)
 	local db = frame.db
 	if not db then return end
@@ -128,10 +154,12 @@ function UF:Configure_ClassBar(frame)
 	local classBar = frame.ClassBar
 	local bars = frame[classBar]
 	if not bars then return end
+	local fixedDruid = foreverDruid and frame.unitframeType == 'player'
 
 	bars.Holder = frame.ClassBarHolder
-	bars.AdditionalHolder = (frame.ThirdPower or frame.AdditionalPower) and frame.ClassAdditionalHolder
+	bars.AdditionalHolder = not fixedDruid and (frame.ThirdPower or frame.AdditionalPower) and frame.ClassAdditionalHolder
 	bars.origParent = frame
+	local target = fixedDruid and UF.target
 
 	--Fix height in case it is lower than the theme allows, or in case it's higher than 30px when not detached
 	if not UF.thinBorders and (frame.CLASSBAR_HEIGHT > 0 and frame.CLASSBAR_HEIGHT < 7) then --A height of 7 means 6px for borders and just 1px for the actual power statusbar
@@ -163,7 +191,9 @@ function UF:Configure_ClassBar(frame)
 	local ONE_LESS_BAR = MAX_CLASS_BAR - 1
 	local SINGLE_BAR = MAX_CLASS_BAR == 1
 
-	if frame.USE_MINI_CLASSBAR and not frame.CLASSBAR_DETACHED then
+	if fixedDruid and target and target.Health then
+		CLASSBAR_WIDTH = target.Health:GetWidth() + (UF.BORDER + UF.SPACING) * 2
+	elseif frame.USE_MINI_CLASSBAR and not frame.CLASSBAR_DETACHED then
 		if SINGLE_BAR or (isEclipse or isStagger or isAlternative) then
 			CLASSBAR_WIDTH = (CLASSBAR_WIDTH * 2) / 3
 		else
@@ -178,7 +208,13 @@ function UF:Configure_ClassBar(frame)
 	local SPACING_ATTACHED = (frame.CLASSBAR_DETACHED and db.classbar.spacing or 5) + SPACING
 
 	local barsWidth = CLASSBAR_WIDTH - SPACING
-	local barsHeight = frame.CLASSBAR_HEIGHT - SPACING
+	local classBarHeight = frame.CLASSBAR_HEIGHT
+	if fixedDruid and target and target.Health.HEIGHT then
+		local availableHeight = target.Health.HEIGHT + (target.CLASSBAR_YOFFSET or 0)
+		classBarHeight = min(classBarHeight, max(availableHeight + UF.BORDER - UF.SPACING - 1, 0))
+	end
+	bars.attachedHeight = fixedDruid and classBarHeight or nil
+	local barsHeight = fixedDruid and max(classBarHeight - SPACING, 1) or (classBarHeight - SPACING)
 	bars:Size(barsWidth, barsHeight)
 
 	local isVertical = frame.CLASSBAR_DETACHED and db.classbar.verticalOrientation
@@ -316,7 +352,32 @@ function UF:Configure_ClassBar(frame)
 		end
 	end
 
-	if frame.USE_MINI_CLASSBAR and not frame.CLASSBAR_DETACHED then
+	if fixedDruid then
+		local mana = frame.AdditionalPower
+		mana:ClearAllPoints()
+		mana:Point('BOTTOMLEFT', frame.Health.backdrop, 'TOPLEFT', UF.BORDER, UF.SPACING*3)
+		mana:Point('BOTTOMRIGHT', frame.Health.backdrop, 'TOPRIGHT', -UF.BORDER, UF.SPACING*3)
+		mana:Height(GetAttachedManaHeight(frame) - SPACING)
+		mana:OffsetFrameLevel(10, frame.Health)
+		mana:SetFrameStrata(frame.Health:GetFrameStrata())
+		mana:SetOrientation('HORIZONTAL')
+
+		-- The resource owner stays the player; the holder follows the target's visibility and position.
+		local holder = bars.Holder
+		local parent = target or frame
+		if holder:GetParent() ~= parent then holder:SetParent(parent) end
+		holder:ClearAllPoints()
+		holder:Size(barsWidth, barsHeight)
+		holder:SetShown(frame:IsShown() and target and target.db and target.db.enable and target:IsShown() and classBarHeight > SPACING)
+		if target and target.Health then
+			holder:Point('BOTTOMLEFT', target.Health.backdrop, 'TOPLEFT', UF.BORDER, UF.SPACING*3)
+		end
+
+		bars:ClearAllPoints()
+		bars:Point('BOTTOMLEFT', holder, 'BOTTOMLEFT')
+		bars:OffsetFrameLevel(10, target and target.Health or frame.Health)
+		bars:SetFrameStrata(target and target.Health:GetFrameStrata() or frame.Health:GetFrameStrata())
+	elseif frame.USE_MINI_CLASSBAR and not frame.CLASSBAR_DETACHED then
 		bars:ClearAllPoints()
 		bars:Point('CENTER', frame.Health.backdrop, 'TOP', 0, 0)
 
@@ -355,7 +416,10 @@ function UF:Configure_ClassBar(frame)
 		end
 	end
 
-	if frame.CLASSBAR_DETACHED and db.classbar.parent == 'UIPARENT' then
+	if fixedDruid then
+		E.FrameLocks[bars] = nil
+		bars:SetParent(bars.Holder)
+	elseif frame.CLASSBAR_DETACHED and db.classbar.parent == 'UIPARENT' then
 		E.FrameLocks[bars] = true
 		bars:SetParent(E.UIParent)
 	else
@@ -404,16 +468,28 @@ function UF:ToggleResourceBar()
 
 	local shown = frame[frame.ClassBar]:IsShown()
 	if self.text then
-		self.text:SetAlpha(shown and 1 or 0)
+		self.text:SetAlpha((foreverDruid and frame.unitframeType == 'player' and self == frame.AdditionalPower or shown) and 1 or 0)
 	end
 
 	frame.CLASSBAR_SHOWN = shown
 	frame.CLASSBAR_HEIGHT = (frame.USE_CLASSBAR and db.classbar.height) or (frame.AlternativePower and db.power.height) or 0
-	frame.CLASSBAR_YOFFSET = (not shown or not frame.USE_CLASSBAR or frame.CLASSBAR_DETACHED) and 0 or (frame.USE_MINI_CLASSBAR and (UF.SPACING + (frame.CLASSBAR_HEIGHT * 0.5))) or (frame.CLASSBAR_HEIGHT - (UF.BORDER - UF.SPACING))
+	frame.CLASSBAR_YOFFSET = UF:GetClassBarYOffset(frame)
 
 	UF:Configure_CustomTexts(frame)
 	UF:Configure_HealthBar(frame)
 	UF:Configure_Portrait(frame)
+
+	if foreverDruid and frame.unitframeType == 'player' then
+		local target = UF.target
+		if target and target.db then
+			-- Keep the combo points inside the target frame's top edge, below its auras.
+			target.CLASSBAR_YOFFSET = (shown and frame.USE_CLASSBAR and frame.ClassBarHolder:IsShown()) and (frame.ClassPower.attachedHeight - (UF.BORDER - UF.SPACING)) or 0
+			UF:Configure_HealthBar(target)
+			UF:Configure_Power(target)
+			UF:Configure_Portrait(target)
+			if target.HealthPrediction then UF:SetSize_HealComm(target) end
+		end
+	end
 
 	-- keep this after the configure_healtbar, we need the one updated before we match the healpred size to -1
 	if frame.HealthPrediction then
